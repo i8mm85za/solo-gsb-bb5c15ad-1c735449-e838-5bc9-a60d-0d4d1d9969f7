@@ -3,6 +3,7 @@ import SampleEditor from "./components/SampleEditor.jsx";
 import SchemaTree from "./components/SchemaTree.jsx";
 import ValidatePanel from "./components/ValidatePanel.jsx";
 import DiffPanel from "./components/DiffPanel.jsx";
+import ContributionPanel from "./components/ContributionPanel.jsx";
 import { inferSchema } from "./api.js";
 import { DEFAULT_SAMPLES } from "./defaultSamples.js";
 
@@ -29,6 +30,7 @@ function parseSample(text) {
 
 export default function App() {
   const [sampleTexts, setSampleTexts] = useState(DEFAULT_SAMPLES);
+  const [highlightIndex, setHighlightIndex] = useState(null);
   const [result, setResult] = useState(null);
   const [inferError, setInferError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -51,6 +53,19 @@ export default function App() {
 
   function removeSample(index) {
     setSampleTexts((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Scroll the matching sample editor into view and flash it briefly.
+  function locateSample(index) {
+    setHighlightIndex(index);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`sample-editor-${index}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    setTimeout(() => {
+      setHighlightIndex((cur) => (cur === index ? null : cur));
+    }, 1800);
   }
 
   async function runInfer() {
@@ -117,7 +132,8 @@ export default function App() {
         <h1>JSON 契约工坊</h1>
         <p>
           粘贴多份 JSON 样本，递归归纳出 JSON Schema 2020-12 接口契约；自动处理字段缺失、null、
-          异构数组与类型冲突，可校验新样本，并支持把归纳结果设为基线、按请求体/响应体视角对比契约演进。
+          异构数组与类型冲突，可校验新样本、分析每条样本对契约的贡献度（关键/冗余），
+          并支持把归纳结果设为基线、按请求体/响应体视角对比契约演进。
         </p>
       </header>
 
@@ -138,6 +154,7 @@ export default function App() {
                 value={text}
                 parseError={parsed[i].ok ? null : parsed[i].error}
                 canRemove={sampleTexts.length > 1}
+                highlighted={highlightIndex === i}
                 onChange={(t) => updateSample(i, t)}
                 onRemove={() => removeSample(i)}
               />
@@ -159,6 +176,13 @@ export default function App() {
             </button>
           </div>
           {inferError && <div className="alert alert--err">{inferError}</div>}
+
+          <ContributionPanel
+            sampleTexts={sampleTexts}
+            parsed={parsed}
+            allValid={allValid}
+            onLocate={locateSample}
+          />
         </section>
 
         <section className="panel">

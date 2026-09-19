@@ -336,6 +336,60 @@ test("POST /api/scan validates its schemas", async () => {
   assert.match(invalid.data.error, /Invalid schema/);
 });
 
+test("POST /api/contribution classifies critical and redundant samples", async () => {
+  const res = await post("/api/contribution", {
+    samples: [
+      { id: 1, name: "a" },
+      { id: 2, name: "b" },
+      { id: 3, name: "c", extra: true },
+    ],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.data.total, 3);
+  assert.deepEqual(res.data.summary, { critical: 1, redundant: 2 });
+  assert.deepEqual(
+    res.data.samples.map((s) => s.classification),
+    ["redundant", "redundant", "critical"]
+  );
+  const critical = res.data.samples[2];
+  assert.ok(critical.affectedPointers.includes("/properties/extra"));
+  // The same rule is counted once: no duplicate pointers.
+  assert.equal(new Set(critical.affectedPointers).size, critical.affectedPointers.length);
+});
+
+test("POST /api/contribution ignores object key order and array order", async () => {
+  const res = await post("/api/contribution", {
+    samples: [
+      { a: 1, b: [1, "x"] },
+      { b: ["y", 2], a: 3 },
+    ],
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.data.summary, { critical: 0, redundant: 2 });
+});
+
+test("POST /api/contribution rejects bad input and more than 50 samples", async () => {
+  const missing = await post("/api/contribution", {});
+  assert.equal(missing.status, 400);
+  assert.match(missing.data.error, /'samples' array/);
+
+  const empty = await post("/api/contribution", { samples: [] });
+  assert.equal(empty.status, 400);
+  assert.match(empty.data.error, /'samples' array/);
+
+  const tooMany = await post("/api/contribution", {
+    samples: Array.from({ length: 51 }, () => 1),
+  });
+  assert.equal(tooMany.status, 400);
+  assert.match(tooMany.data.error, /50/);
+
+  const atLimit = await post("/api/contribution", {
+    samples: Array.from({ length: 50 }, () => 1),
+  });
+  assert.equal(atLimit.status, 200);
+  assert.equal(atLimit.data.total, 50);
+});
+
 test("malformed JSON body gets a JSON 400", async () => {
   const res = await fetch(`${base}/api/infer`, {
     method: "POST",
