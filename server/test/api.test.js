@@ -336,6 +336,52 @@ test("POST /api/scan validates its schemas", async () => {
   assert.match(invalid.data.error, /Invalid schema/);
 });
 
+test("POST /api/contribution classifies samples via leave-one-out inference", async () => {
+  const res = await post("/api/contribution", {
+    samples: [{ id: 1, tag: "x" }, { id: 2, tag: "y" }, { id: 3 }],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.data.total, 3);
+  assert.deepEqual(res.data.summary, { critical: 1, redundant: 2 });
+  assert.deepEqual(
+    res.data.samples.map((s) => [s.index, s.verdict]),
+    [
+      [0, "redundant"],
+      [1, "redundant"],
+      [2, "critical"],
+    ]
+  );
+  // Without sample #2, "tag" is present in every remaining object -> required.
+  assert.deepEqual(res.data.samples[2].affectedPointers, ["/properties/tag"]);
+  assert.deepEqual(res.data.samples[0].affectedPointers, []);
+});
+
+test("POST /api/contribution validates its input", async () => {
+  const missing = await post("/api/contribution", {});
+  assert.equal(missing.status, 400);
+  assert.match(missing.data.error, /'samples' array/);
+
+  const notArray = await post("/api/contribution", { samples: { 0: 1 } });
+  assert.equal(notArray.status, 400);
+  assert.match(notArray.data.error, /'samples' array/);
+
+  const empty = await post("/api/contribution", { samples: [] });
+  assert.equal(empty.status, 400);
+  assert.match(empty.data.error, /'samples' array/);
+
+  const tooMany = await post("/api/contribution", {
+    samples: Array.from({ length: 51 }, () => 1),
+  });
+  assert.equal(tooMany.status, 400);
+  assert.match(tooMany.data.error, /50/);
+
+  const atLimit = await post("/api/contribution", {
+    samples: Array.from({ length: 50 }, (_, i) => ({ id: i })),
+  });
+  assert.equal(atLimit.status, 200);
+  assert.equal(atLimit.data.total, 50);
+});
+
 test("malformed JSON body gets a JSON 400", async () => {
   const res = await fetch(`${base}/api/infer`, {
     method: "POST",

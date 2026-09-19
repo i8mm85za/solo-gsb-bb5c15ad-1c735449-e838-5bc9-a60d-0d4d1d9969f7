@@ -1,6 +1,17 @@
-export default function SampleEditor({ index, value, parseError, canRemove, onChange, onRemove }) {
+export default function SampleEditor({
+  index,
+  value,
+  parseError,
+  canRemove,
+  highlighted,
+  onChange,
+  onRemove,
+}) {
   return (
-    <div className="sample-editor">
+    <div
+      className={`sample-editor ${highlighted ? "sample-editor--located" : ""}`}
+      id={`sample-editor-${index}`}
+    >
       <div className="sample-editor__head">
         <span className="sample-editor__title">样本 {index + 1}</span>
         <span className={`parse-badge ${parseError ? "parse-badge--err" : "parse-badge--ok"}`}>

@@ -33,3 +33,7 @@ export function generateCounterexample(oldSchema, newSchema, perspective, kind, 
 export function scanSamples(oldSchema, newSchema, samples) {
   return request("/api/scan", { oldSchema, newSchema, samples });
 }
+
+export function analyzeContribution(samples) {
+  return request("/api/contribution", { samples });
+}

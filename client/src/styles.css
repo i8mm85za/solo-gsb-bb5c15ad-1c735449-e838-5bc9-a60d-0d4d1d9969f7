@@ -937,3 +937,137 @@ body {
 .scan-item__detail {
   padding: 0 10px 8px;
 }
+
+/* ---------- sample contribution analysis ---------- */
+
+.contribution {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.contribution .actions {
+  margin-top: 10px;
+}
+
+.contribution-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 10px;
+}
+
+.contribution-filter {
+  margin-left: auto;
+}
+
+.verdict {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.verdict--critical { color: var(--err); background: rgba(242, 109, 109, 0.14); }
+.verdict--redundant { color: var(--muted); background: rgba(139, 152, 184, 0.14); }
+
+.contribution-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.contribution-item {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.contribution-item--critical { border-left: 3px solid var(--err); }
+.contribution-item--redundant { border-left: 3px solid var(--muted); }
+
+.contribution-item__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 0;
+}
+
+.contribution-item__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 4px 0 4px 10px;
+  cursor: pointer;
+  font-size: 12.5px;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.contribution-item__main:hover {
+  background: rgba(79, 140, 255, 0.06);
+}
+
+.contribution-item__meta {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contribution-item__detail {
+  padding: 2px 12px 10px;
+}
+
+.contribution-pointers {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.contribution-pointers li {
+  padding: 1px 0;
+}
+
+.contribution-pointers code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: #ffb86b;
+}
+
+.alert--info {
+  color: var(--accent);
+  background: rgba(79, 140, 255, 0.08);
+  border: 1px solid rgba(79, 140, 255, 0.3);
+}
+
+/* Highlight flash when a sample is located from the contribution list. */
+.sample-editor {
+  border-radius: 8px;
+  transition: box-shadow 0.3s ease;
+}
+
+.sample-editor--located {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 18px rgba(79, 140, 255, 0.35);
+}
+
+.sample-editor--located .code-input {
+  border-color: var(--accent);
+}

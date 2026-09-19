@@ -3,6 +3,7 @@
 把零散的 JSON 样本整理成接口契约：粘贴多份 JSON，系统递归归纳出 **JSON Schema 2020-12**，
 自动处理字段缺失、`null`、异构数组与类型冲突，并在树形视图中标注每条规则对应的样本路径；
 支持一键复制 Schema、校验新样本并按 **JSON Pointer** 展示错误；
+用**样本贡献度**分析逐条评估样本对契约的影响（关键/冗余，附受影响的规则 Pointer）；
 还可把归纳结果设为基线，对比新旧两版 Schema 的**契约演进**（破坏性/兼容判定），
 为每条破坏性变更加载**反例样本**（递归构造最小 JSON 并用 Ajv 双侧校验），
 用**样本影响扫描**把历史样本集按基线/当前 Schema 逐条校验并归类（两版均通过、仅基线通过、
@@ -40,6 +41,10 @@ docker compose up --build
 - **复制 Schema**：一键复制完整 Schema JSON 到剪贴板。
 - **校验新样本**：基于 Ajv（`allErrors`），错误按 JSON Pointer（如 `/tags/0`）展示，
   并附带关键字、信息与对应规则路径。
+- **样本贡献度**：在「① 样本输入」区一键做留一法分析——逐条移除样本并重新归纳 Schema，
+  与完整样本集的归纳结果按规范化后的规则对比，判定每条样本为**关键**（移除后规则变化）
+  或**冗余**（移除后规则完全一致），并列出受影响的 JSON Pointer；结果区展示关键/冗余数量，
+  可按类型筛选、展开受影响规则，并一键定位到原始样本。单次最多 50 条。
 - **契约演进对比**：把当前归纳结果设为基线，修改样本后归纳新版 Schema，比较器递归处理
   对象属性、`required`、类型联合与数组 `items`，在结果区按 JSON Pointer 分组展示变更清单；
   每条变更给出旧/新规则与判定原因，可一键筛选破坏性项。
@@ -77,6 +82,27 @@ docker compose up --build
 | --- | --- | --- |
 | 请求体（客户端 → 服务端） | 新版新增必填字段；收窄可接受类型 | 可选变必填、`["null","string"]` → `"string"` |
 | 响应体（服务端 → 客户端） | 新版删除必填输出；放宽输出类型 | 必填字段被移除、`"integer"` → `"number"` |
+
+## 样本贡献度：判定规则
+
+分析在 **http://localhost:8080** 页面的「① 样本输入 → 样本贡献度分析」区进行（点击
+「分析样本贡献度」），也可直接调用 `POST /api/contribution`。后端先对完整样本集归纳
+Schema，再**逐条移除一条样本**重新归纳，比较两份 Schema 的规则差异：
+
+| 判定 | 含义 |
+| --- | --- |
+| 关键（`critical`） | 移除该样本后，至少一条规则发生变化（类型联合、必填集合、字段有无、数组 `items` 约束） |
+| 冗余（`redundant`） | 移除该样本后，归纳出的规则与完整样本集完全一致 |
+
+- **规范化比较，无伪差异**：比较前会把 Schema 规范化——`properties` 键排序、`required`
+  数组排序、`type` 统一为有序联合。因此样本的**数组元素顺序**与**对象键顺序**不会产生
+  伪差异；受影响的规则按 Schema JSON Pointer 列出（根节点显示为 `(root)`），同一节点的
+  多处变化只计一次。
+- **结果展示**：汇总关键/冗余数量，可按「全部 / 仅关键 / 仅冗余」筛选；展开单条样本可查看
+  受影响的规则 Pointer 列表，点击「定位样本」滚动并高亮对应的原始样本编辑器。
+- **失效**：任何样本内容修改都会使上一次分析结果立即失效（结果区清空并提示重新分析）。
+- **限制**：单次最多分析 **50** 条样本；超限时前端在提交前拦截提示，接口也返回 `400`
+  及明确错误信息。样本存在无效 JSON 时分析按钮不可用。
 
 ## 反例构造：规则与判定方向
 
@@ -143,7 +169,7 @@ npm run dev:client   # 前端 http://localhost:5173（/api 代理到 8080）
 ## 测试
 
 ```bash
-npm test             # node:test，覆盖归纳引擎、契约比较器、反例生成器、样本影响扫描、HTTP API 与发布门禁（85 项）
+npm test             # node:test，覆盖归纳引擎、契约比较器、反例生成器、样本影响扫描、样本贡献度、HTTP API 与发布门禁（105 项）
 ```
 
 ## API
@@ -156,6 +182,7 @@ npm test             # node:test，覆盖归纳引擎、契约比较器、反例
 | POST | `/api/diff` | `{ "oldSchema": {...}, "newSchema": {...}, "perspective": "request" \| "response" }` | `{ perspective, changes: [{ pointer, kind, field?, severity, oldRule, newRule, reason }], summary: { breaking, compatible, info } }` |
 | POST | `/api/counterexample` | `{ oldSchema, newSchema, perspective, kind, pointer }` | `{ constructible, sample?, oldResult: { valid, errors }, newResult: { valid, errors }, reason? }` |
 | POST | `/api/scan` | `{ oldSchema, newSchema, samples: [<any>, ...] }`（≤ 200 条） | `{ total, summary: { both, baselineOnly, currentOnly, neither }, samples: [{ index, category, baseline: { valid, errors }, current: { valid, errors } }] }` |
+| POST | `/api/contribution` | `{ samples: [<any>, ...] }`（1–50 条） | `{ total, summary: { critical, redundant }, samples: [{ index, verdict, affectedPointers }] }` |
 
 示例：
 
@@ -189,6 +216,20 @@ curl -X POST http://localhost:8080/api/scan \
 #        { "index": 1, "category": "baselineOnly", ... }, ... ] }
 ```
 
+留一法分析样本贡献度（逐条移除样本重新归纳，判定关键/冗余）：
+
+```bash
+curl -X POST http://localhost:8080/api/contribution \
+  -H 'Content-Type: application/json' \
+  -d '{"samples":[{"id":1,"tag":"x"},{"id":2,"tag":"y"},{"id":3}]}'
+# -> { "total": 3,
+#      "summary": { "critical": 1, "redundant": 2 },
+#      "samples": [
+#        { "index": 0, "verdict": "redundant", "affectedPointers": [] },
+#        { "index": 1, "verdict": "redundant", "affectedPointers": [] },
+#        { "index": 2, "verdict": "critical",  "affectedPointers": ["/properties/tag"] } ] }
+```
+
 ## 目录结构
 
 ```
@@ -200,7 +241,8 @@ curl -X POST http://localhost:8080/api/scan \
 │   ├── diff.js             # 契约演进比较器（递归对比属性/required/类型联合/items，按视角定级）
 │   ├── counterexample.js   # 破坏性反例生成器（递归构造最小 JSON + Ajv 双侧校验）
 │   ├── scan.js             # 样本影响扫描器（Ajv 双侧逐条校验 + 四分类，单次上限 200 条）
-│   ├── app.js              # Express（/api/infer、/api/validate、/api/diff、/api/counterexample、/api/scan、静态托管）
+│   ├── contribution.js     # 样本贡献度分析（留一法重新归纳 + 规范化规则差异判定，单次上限 50 条）
+│   ├── app.js              # Express（/api/infer、/api/validate、/api/diff、/api/counterexample、/api/scan、/api/contribution、静态托管）
 │   ├── index.js            # 入口：监听 PORT（默认 8080）
 │   └── test/               # node:test 单元与 API 测试
 └── client/
@@ -213,6 +255,7 @@ curl -X POST http://localhost:8080/api/scan \
         ├── components/DiffPanel.jsx     # 契约演进面板：视角切换、破坏性筛选、按 Pointer 分组
         ├── components/CounterexamplePanel.jsx # 反例：样本格式化展示、双侧校验结果、复制按钮
         ├── components/SampleScanPanel.jsx  # 样本影响扫描：数组输入、四分类汇总、单条双侧错误展开
+        ├── components/ContributionPanel.jsx # 样本贡献度：留一法分析入口、关键/冗余汇总筛选、定位原样本
         ├── components/ReleaseGate.jsx   # 发布门禁卡片：版本输入、放行结论、报告复制
         └── components/SampleEditor.jsx  # 样本编辑器（实时 JSON 校验）
 ```

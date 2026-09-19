@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SampleEditor from "./components/SampleEditor.jsx";
 import SchemaTree from "./components/SchemaTree.jsx";
 import ValidatePanel from "./components/ValidatePanel.jsx";
 import DiffPanel from "./components/DiffPanel.jsx";
+import ContributionPanel from "./components/ContributionPanel.jsx";
 import { inferSchema } from "./api.js";
 import { DEFAULT_SAMPLES } from "./defaultSamples.js";
 
@@ -36,10 +37,28 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [baseline, setBaseline] = useState(loadBaseline);
+  const [locateIndex, setLocateIndex] = useState(null);
 
   const parsed = useMemo(() => sampleTexts.map(parseSample), [sampleTexts]);
   const allValid = parsed.every((p) => p.ok);
   const validCount = parsed.filter((p) => p.ok).length;
+  // Any edit to any sample text changes this signature, which invalidates
+  // the previous contribution analysis (see ContributionPanel).
+  const samplesSignature = useMemo(() => JSON.stringify(sampleTexts), [sampleTexts]);
+
+  // The "located" highlight on a sample editor fades after a short moment.
+  useEffect(() => {
+    if (locateIndex === null) return undefined;
+    const timer = setTimeout(() => setLocateIndex(null), 1800);
+    return () => clearTimeout(timer);
+  }, [locateIndex]);
+
+  function locateSample(index) {
+    setLocateIndex(index);
+    document
+      .getElementById(`sample-editor-${index}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 
   function updateSample(index, text) {
     setSampleTexts((prev) => prev.map((t, i) => (i === index ? text : t)));
@@ -117,7 +136,8 @@ export default function App() {
         <h1>JSON 契约工坊</h1>
         <p>
           粘贴多份 JSON 样本，递归归纳出 JSON Schema 2020-12 接口契约；自动处理字段缺失、null、
-          异构数组与类型冲突，可校验新样本，并支持把归纳结果设为基线、按请求体/响应体视角对比契约演进。
+          异构数组与类型冲突，可校验新样本、逐条评估样本贡献度（关键/冗余），并支持把归纳结果设为基线、
+          按请求体/响应体视角对比契约演进。
         </p>
       </header>
 
@@ -138,6 +158,7 @@ export default function App() {
                 value={text}
                 parseError={parsed[i].ok ? null : parsed[i].error}
                 canRemove={sampleTexts.length > 1}
+                highlighted={locateIndex === i}
                 onChange={(t) => updateSample(i, t)}
                 onRemove={() => removeSample(i)}
               />
@@ -159,6 +180,13 @@ export default function App() {
             </button>
           </div>
           {inferError && <div className="alert alert--err">{inferError}</div>}
+
+          <ContributionPanel
+            samples={parsed.map((p) => (p.ok ? p.value : null))}
+            allValid={allValid}
+            signature={samplesSignature}
+            onLocate={locateSample}
+          />
         </section>
 
         <section className="panel">

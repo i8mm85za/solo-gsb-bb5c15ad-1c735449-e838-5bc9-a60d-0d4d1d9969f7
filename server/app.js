@@ -7,6 +7,7 @@ const { inferSchema } = require("./infer");
 const { compareSchemas, PERSPECTIVES } = require("./diff");
 const { generateCounterexample } = require("./counterexample");
 const { scanSamples } = require("./scan");
+const { analyzeContribution } = require("./contribution");
 
 function createApp() {
   const app = express();
@@ -113,6 +114,18 @@ function createApp() {
     }
     try {
       res.json(scanSamples({ oldSchema, newSchema, samples }));
+    } catch (err) {
+      const status = err.status && err.status < 500 ? err.status : 500;
+      res.status(status).json({ error: status === 500 ? "Internal server error" : err.message });
+    }
+  });
+
+  // Leave-one-out contribution analysis: re-infer the schema without each
+  // sample and classify it critical/redundant by normalized rule diffs.
+  app.post("/api/contribution", (req, res) => {
+    const { samples } = req.body || {};
+    try {
+      res.json(analyzeContribution(samples));
     } catch (err) {
       const status = err.status && err.status < 500 ? err.status : 500;
       res.status(status).json({ error: status === 500 ? "Internal server error" : err.message });
